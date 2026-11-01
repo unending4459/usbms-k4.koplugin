@@ -1,6 +1,8 @@
-# USB storage for KOReader on Kindle
+# USB storage for KOReader on Kindle 4
 
-`usbms.koplugin` brings USB mass storage to [KOReader](https://koreader.rocks) on jailbroken Kindles. Tap **Start USB storage** (or accept the prompt when you plug in a computer) to share the Kindle's storage without manually leaving KOReader. With the direct method, KOReader restarts after eject or unplug once storage recovery succeeds. The alternative Amazon UI method can return to KOReader after the cable is unplugged, if automatic return is enabled.
+A fork of [jtorregrosa/usbms.koplugin](https://github.com/jtorregrosa/usbms.koplugin), adapted to the **Kindle 4 non-touch** on firmware 4.x and tested only there. For other Kindles, use the original plugin.
+
+`usbms.koplugin` brings USB mass storage to [KOReader](https://koreader.rocks) on a jailbroken Kindle 4. Tap **Start USB storage** (or accept the prompt when you plug in a computer) to share the Kindle's storage without manually leaving KOReader. With the direct method, KOReader restarts after eject or unplug once storage recovery succeeds. The alternative Amazon UI method can return to KOReader after the cable is unplugged, if automatic return is enabled.
 
 Without it, KOReader on Kindle blocks USB storage on purpose (it lives on the partition that would be exported), so copying books means leaving KOReader and going through the Amazon UI.
 
@@ -12,18 +14,18 @@ Without it, KOReader on Kindle blocks USB storage on purpose (it lives on the pa
 
 | | |
 | :-- | :-- |
-| Tested on | Kindle Paperwhite 2 (6th gen, 2013), firmware 5.12.2.2, KOReader 2026.07.2 started with `koreader.sh --framework_stop` |
-| Other Kindles | Untested. The direct method checks the expected storage layout and services before export (see [Safety](#safety)) and refuses if a check fails. Passing those checks does not establish compatibility with an untested device. The Amazon UI method uses Amazon's USB handling, but is also untested elsewhere. Kindles without the `fsl-usb2-udc` USB controller cannot tell a computer from a charger: the plugin asks on any cable, and the Amazon UI method stays in the Amazon UI after a USB session instead of guessing when the cable is out |
+| Tested on | Kindle 4 non-touch (2011), firmware 4.1.4, KOReader v2026.07.1. Direct method with KOReader started from KUAL without the framework; Amazon UI method with the framework up |
+| Other Kindles | Not supported by this fork and untested there. Use the original [jtorregrosa/usbms.koplugin](https://github.com/jtorregrosa/usbms.koplugin), tested on a Kindle Paperwhite 2 with firmware 5.12.2.2 |
 | Status screens | Text only, placed and sized from the screen height reported by KOReader's `fbink` |
-| Shell | Both helpers run under the plugin's own static BusyBox `ash` (`usbms.koplugin/busybox`, ARMv7). Older Kindle shells, such as the Kindle 4's on firmware 4.x, cannot close file descriptors above 9 and would exit before the helper starts. The plugin refuses to start without it |
+| Shell | Both helpers run under the plugin's own static BusyBox `ash` (`usbms.koplugin/busybox`, ARMv7). The Kindle 4's firmware BusyBox 1.7.2 cannot close file descriptors above 9 and lacks options the helpers rely on. The plugin refuses to start without it |
 | Other platforms | Unsupported. The plugin disables itself on anything but a Kindle |
 
 ## Install
 
 You need a jailbroken Kindle with KOReader already installed. Back up your books and other userstore data before trying the plugin on an untested setup.
 
-1. Download `usbms.koplugin-vX.Y.Z.zip` from [Releases](../../releases).
-2. Connect the Kindle (leave KOReader first) and unzip into `koreader/plugins/`, so you get `koreader/plugins/usbms.koplugin/main.lua`.
+1. Download this repository (*Code → Download ZIP*, or `git clone`).
+2. Connect the Kindle (leave KOReader first) and copy the `usbms.koplugin/` folder into `koreader/plugins/`, so you get `koreader/plugins/usbms.koplugin/main.lua`. Replace any earlier copy of the plugin completely.
 3. Eject, start KOReader, and check *Tools → More tools → Plugin management → USB mode (Kindle)* is enabled.
 
 You can also [build the package from source](#build-a-release). The development tools are not required to install or run a packaged release.
@@ -41,7 +43,7 @@ You can also [build the package from source](#build-a-release). The development 
 **Direct method** (default when KOReader runs without the Amazon framework). It does what Amazon's `volumd` does, without the framework:
 
 1. The plugin copies a shell helper, its BusyBox, KOReader's `fbink` and a font to `/var/tmp` (RAM), starts the helper under that BusyBox's `ash`, and waits until the helper confirms it has paused `koreader.sh`. Only then does KOReader quit.
-2. The helper waits for KOReader to exit, stops what KOReader left running, and waits for both `gadget/connected` and `powerd isCharging` to report `1`. It then unmounts `/mnt/base-us` and writes `/dev/mmcblk0p4` to the USB gadget's LUN. `g_file_storage` is already loaded by the firmware; no module is loaded or unloaded.
+2. The helper waits for KOReader to exit, stops what KOReader left running, and waits for both the USB gadget (`gadget-lun0/online` on firmware 4.x, which has no `gadget/connected`) and `powerd isCharging` to report `1`. It then unmounts `/mnt/base-us` and writes `/dev/mmcblk0p4` to the USB gadget's LUN. `g_file_storage` is already loaded by the firmware; no module is loaded or unloaded.
 3. When the computer ejects the drive (the gadget empties the LUN) or the cable goes away, the helper confirms the LUN is released, checks unclean sessions through Amazon's `mntus --fsck mount`, and remounts the storage. It resumes `koreader.sh` only after the base mount and access to KOReader are confirmed; the launcher's loop then restarts KOReader.
 
 **Amazon UI method** (slower alternative). KOReader quits normally, `koreader.sh` brings the Amazon framework back, and Amazon handles exporting the drive. If automatic return is enabled, the helper starts KOReader again after the cable is unplugged and storage availability is confirmed. Otherwise, you stay in the Amazon UI. If you start KOReader yourself in the meantime (from KUAL, for example), the helper steps aside and never starts a second copy. This method is used when you enable it in the settings, and always when KOReader runs on top of the Amazon framework.
