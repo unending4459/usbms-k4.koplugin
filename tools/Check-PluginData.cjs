@@ -9,7 +9,7 @@ const locales = process.argv.slice(3);
 assert.ok(locales.length > 0, "No locales given");
 for (const name of locales) assert.match(name, /^[a-z]{2,3}(?:_[A-Z]{2})?$/, `Locale name: ${name}`);
 const luaFiles = ["main.lua", "_meta.lua", "usbms_l10n.lua", ...locales.map(name => `l10n/${name}.lua`)];
-const expected = [...luaFiles, "usbms_direct.sh", "usbms_framework.sh", "LICENSE"].sort();
+const expected = [...luaFiles, "usbms_direct.sh", "usbms_framework.sh", "busybox", "LICENSE"].sort();
 const asts = fs.readFileSync(0, "utf8").trim().split(/\r?\n/).map(JSON.parse);
 assert.equal(asts.length, luaFiles.length, "Unexpected Lua AST count");
 

@@ -27,6 +27,15 @@ KOREADER_SH=/mnt/us/koreader/koreader.sh
 CONNECTED=/sys/devices/platform/fsl-usb2-udc/gadget/connected
 CLEAN_PATH=${PATH:-/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}
 
+# Every command BusyBox has comes from the plugin's own copy: the firmware's BusyBox (1.7.2 on the
+# K4) lacks options and applets (setsid) this helper relies on. mount and umount stay the
+# firmware's; KOReader is relaunched with CLEAN_PATH.
+use_own_busybox() {
+    rm -rf "$WORK/bin" && mkdir "$WORK/bin" && "$WORK/busybox" --install -s "$WORK/bin" || return 1
+    rm -f "$WORK/bin/mount" "$WORK/bin/umount"
+    PATH="$WORK/bin:$PATH"
+}
+
 cd / || exit 1
 trap '' HUP
 
@@ -82,6 +91,8 @@ trap 'exit 1' INT TERM
 cancelled && exit 1
 echo $$ > "$LOCK/pid" || exit 1
 echo $$ > "$PIDFILE" || exit 1
+# Before READY: if this fails, KOReader stays open.
+use_own_busybox || exit 1
 echo "$TOKEN" > "$READY" || exit 1
 
 : > "$LOG"

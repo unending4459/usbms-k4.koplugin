@@ -11,6 +11,7 @@ Without it, KOReader on Kindle blocks USB storage on purpose (it lives on the pa
 | Tested on | Kindle Paperwhite 2 (6th gen, 2013), firmware 5.12.2.2, KOReader 2026.07.2 started with `koreader.sh --framework_stop` |
 | Other Kindles | Untested. The direct method checks the expected storage layout and services before export (see [Safety](#safety)) and refuses if a check fails. Passing those checks does not establish compatibility with an untested device. The Amazon UI method uses Amazon's USB handling, but is also untested elsewhere. Kindles without the `fsl-usb2-udc` USB controller cannot tell a computer from a charger: the plugin asks on any cable, and the Amazon UI method stays in the Amazon UI after a USB session instead of guessing when the cable is out |
 | Status screens | Text only, placed and sized from the screen height reported by KOReader's `fbink` |
+| Shell | Both helpers run under the plugin's own static BusyBox `ash` (`usbms.koplugin/busybox`, ARMv7). Older Kindle shells, such as the Kindle 4's on firmware 4.x, cannot close file descriptors above 9 and would exit before the helper starts. The plugin refuses to start without it |
 | Other platforms | Unsupported. The plugin disables itself on anything but a Kindle |
 
 ## Install
@@ -35,7 +36,7 @@ You can also [build the package from source](#build-a-release). The development 
 
 **Direct method** (default when KOReader runs without the Amazon framework). It does what Amazon's `volumd` does, without the framework:
 
-1. The plugin copies a shell helper, KOReader's `fbink` and a font to `/var/tmp` (RAM), starts the helper, and waits until the helper confirms it has paused `koreader.sh`. Only then does KOReader quit.
+1. The plugin copies a shell helper, its BusyBox, KOReader's `fbink` and a font to `/var/tmp` (RAM), starts the helper under that BusyBox's `ash`, and waits until the helper confirms it has paused `koreader.sh`. Only then does KOReader quit.
 2. The helper waits for KOReader to exit, stops what KOReader left running, and waits for both `gadget/connected` and `powerd isCharging` to report `1`. It then unmounts `/mnt/base-us` and writes `/dev/mmcblk0p4` to the USB gadget's LUN. `g_file_storage` is already loaded by the firmware; no module is loaded or unloaded.
 3. When the computer ejects the drive (the gadget empties the LUN) or the cable goes away, the helper confirms the LUN is released, checks unclean sessions through Amazon's `mntus --fsck mount`, and remounts the storage. It resumes `koreader.sh` only after the base mount and access to KOReader are confirmed; the launcher's loop then restarts KOReader.
 
@@ -95,6 +96,7 @@ The log of the last session: *Settings → Device → USB mass storage → Show 
 
 - [KOReader](https://github.com/koreader/koreader) and its developers. The design follows NiLuJe's [KoboUSBMS](https://github.com/koreader/KoboUSBMS) (helper on tmpfs, busy check before export, `dosfsck` on the way back) and the analysis in koreader issues [#3220](https://github.com/koreader/koreader/issues/3220) and [#2597](https://github.com/koreader/koreader/issues/2597).
 - [zen-mtp](https://github.com/xZenLabs/zen-mtp), for the hand-off from KOReader to a helper on Kindle.
+- [BusyBox](https://busybox.net) (GPLv2), bundled unmodified as `usbms.koplugin/busybox` to run the helpers: the official static `busybox-armv7l` 1.31.0 from [busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl](https://busybox.net/downloads/binaries/1.31.0-defconfig-multiarch-musl/) (SHA-256 `cd04052b8b6885f75f50b2a280bfcbf849d8710c8e61d369c533acf307eda064`). Its source: [busybox-1.31.0.tar.bz2](https://busybox.net/downloads/busybox-1.31.0.tar.bz2), built with `make defconfig`.
 
 ## License
 

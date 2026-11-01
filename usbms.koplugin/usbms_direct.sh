@@ -45,6 +45,16 @@ USERSTORE_DEV=/dev/mmcblk0p4
 LOOP_DEV=/dev/loop/0
 BASE_MP=/mnt/base-us
 
+# Every command BusyBox has comes from the plugin's own copy: the firmware's BusyBox (1.7.2 on the
+# K4) lacks options this helper relies on, such as grep -E. mount and umount stay the firmware's
+# util-linux ones, and Amazon's mntus script gets the firmware PATH back.
+SYSTEM_PATH=$PATH
+use_own_busybox() {
+    rm -rf "$WORK/bin" && mkdir "$WORK/bin" && "$WORK/busybox" --install -s "$WORK/bin" || return 1
+    rm -f "$WORK/bin/mount" "$WORK/bin/umount"
+    PATH="$WORK/bin:$PATH"
+}
+
 cd / || exit 1
 trap '' HUP
 
@@ -141,13 +151,13 @@ restore_userstore() {
     sync
     if [ "$NEEDS_FSCK" = 1 ]; then
         RECOVERY_RESULT=fsckfail
-        mntus --fsck mount >> "$LOG" 2>&1 || return 1
+        PATH="$SYSTEM_PATH" mntus --fsck mount >> "$LOG" 2>&1 || return 1
         NEEDS_FSCK=0
         RECOVERY_RESULT=fail
     fi
     mount_attempt=0
     while ! base_mounted && [ "$mount_attempt" -lt 3 ]; do
-        if ! mntus mount >> "$LOG" 2>&1; then
+        if ! PATH="$SYSTEM_PATH" mntus mount >> "$LOG" 2>&1; then
             base_mounted && return 1
         fi
         mount_attempt=$((mount_attempt + 1))
@@ -211,6 +221,7 @@ echo $$ > "$PIDFILE" || exit 1
 : > "$LOG"
 log "direct: reader=$READER_PID koreader.sh=$KOSH_PID host_timeout=${HOST_TIMEOUT}s fsck=$FSCK_MODE"
 echo "fail" > "$RESULT"
+use_own_busybox || fail precheck "precheck failed: cannot link BusyBox commands into $WORK/bin"
 
 # ---- Pre-flight: nothing has changed yet. Any surprise means hands off.
 check() { # $1 message, rest: command

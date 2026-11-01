@@ -44,6 +44,9 @@ local HELPER_READY = WORK_DIR .. "/ready"
 local HELPER_LOG = "/var/local/usbms-koplugin.log"
 local HELPER_RESULT = WORK_DIR .. "/result"
 local HELPER_SCREEN_TEXTS = WORK_DIR .. "/screen.txt"
+-- The helpers run under the plugin's own busybox ash: older Kindle shells (K4, FW 4.x) cannot parse
+-- redirections on fds above 9, and the helpers' fd-closing loop would kill them before they log.
+local HELPER_BUSYBOX = WORK_DIR .. "/busybox"
 local SCREEN_KEYS = { "waiting_title", "waiting_text", "active_title", "active_text",
     "returning_title", "returning_text", "recovery_title", "recovery_text" }
 -- A helper that has not touched its lock for this long is not about to.
@@ -426,6 +429,9 @@ function USBMS:start()
         return
     end
     local copied, detail = copyFile(self.path .. "/" .. script, helper, "755")
+    if copied then
+        copied, detail = copyFile(self.path .. "/busybox", HELPER_BUSYBOX, "755")
+    end
     if copied and direct then
         copied, detail = self:copyDirectPayload()
         if copied and not writeScreenTexts() then
@@ -453,7 +459,9 @@ function USBMS:start()
             os.getenv("STOP_FRAMEWORK") == "yes" and "--framework_stop" or "--asap",
             self:autoReturn() and 1 or 0, self:plugTimeout(), token)
     end
-    local cmd = string.format("cd / && ( $(command -v setsid) sh %s %s < /dev/null > /dev/null 2>&1 & )", helper, args)
+    -- setsid from the same busybox: the K4's firmware has none.
+    local cmd = string.format("cd / && ( %s setsid %s ash %s %s < /dev/null > /dev/null 2>&1 & )",
+        HELPER_BUSYBOX, HELPER_BUSYBOX, helper, args)
     -- The wait below blocks the UI for up to 10 s (pre-flight checks): say what is going on first.
     local leaving = InfoMessage:new{ text = S.leaving }
     UIManager:show(leaving)
