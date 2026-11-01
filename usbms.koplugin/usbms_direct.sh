@@ -41,6 +41,9 @@ HAL_EVENTS="$WORK/hal.events"
 UDC=/sys/devices/platform/fsl-usb2-udc/gadget
 LUN="$UDC/gadget-lun0/file"
 CONNECTED="$UDC/connected"
+# FW 4 (K4) has no connected file; the LUN's online flag is 1 only while a computer is attached
+# (0 with no cable and on a charge-only port).
+[ -e "$CONNECTED" ] || CONNECTED="$UDC/gadget-lun0/online"
 USERSTORE_DEV=/dev/mmcblk0p4
 LOOP_DEV=/dev/loop/0
 BASE_MP=/mnt/base-us

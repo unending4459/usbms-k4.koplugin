@@ -53,8 +53,12 @@ local SCREEN_KEYS = { "waiting_title", "waiting_text", "active_title", "active_t
 local STALE_LOCK_AGE = 30
 local SSH_PIDFILE = "/tmp/dropbear_koreader.pid"
 -- 1 once a computer has enumerated the Kindle; 0 with no cable or a plain charger. Only Kindles
--- with the fsl UDC (the tested Paperwhite 2 among them) have it.
+-- with the fsl UDC (the tested Paperwhite 2 among them) have it. FW 4 (K4) has no such file, but
+-- the LUN's online flag behaves the same way.
 local USB_CONNECTED = "/sys/devices/platform/fsl-usb2-udc/gadget/connected"
+if not util.pathExists(USB_CONNECTED) then
+    USB_CONNECTED = "/sys/devices/platform/fsl-usb2-udc/gadget/gadget-lun0/online"
+end
 -- What the direct helper needs off the userstore besides itself: KOReader's fbink (OpenType text,
 -- no image support) and a font for it. The status screens are text only: the original raw images
 -- only fit the Paperwhite 2's 758x1024 framebuffer.

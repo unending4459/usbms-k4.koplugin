@@ -25,6 +25,8 @@ LOCK="$WORK/lock"
 READY="$WORK/ready"
 KOREADER_SH=/mnt/us/koreader/koreader.sh
 CONNECTED=/sys/devices/platform/fsl-usb2-udc/gadget/connected
+# FW 4 (K4) has no connected file; the LUN's online flag is 1 only while a computer is attached.
+[ -e "$CONNECTED" ] || CONNECTED=/sys/devices/platform/fsl-usb2-udc/gadget/gadget-lun0/online
 CLEAN_PATH=${PATH:-/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin}
 
 # Every command BusyBox has comes from the plugin's own copy: the firmware's BusyBox (1.7.2 on the
