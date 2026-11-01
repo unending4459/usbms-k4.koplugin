@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Run conversion and release tests
+      - name: Run release tests
         shell: pwsh
         run: ./tests/Test-Release.ps1
 

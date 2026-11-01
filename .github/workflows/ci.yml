@@ -32,7 +32,7 @@ jobs:
         run: pwsh -NoLogo -NoProfile -File tools/Build-Release.ps1
 
   test-windows:
-    name: Screen Conversion & Release Tests (Windows)
+    name: Release Tests (Windows)
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -47,6 +47,6 @@ jobs:
         shell: pwsh
         run: node tests/lua-data.cjs | npx.cmd --yes --package=fengari-node-cli@0.1.0 fengari -
 
-      - name: Run screen conversion and release packaging tests
+      - name: Run release packaging tests
         shell: pwsh
         run: ./tests/Test-Release.ps1

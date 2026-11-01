@@ -4,22 +4,13 @@
 
 Without it, KOReader on Kindle blocks USB storage on purpose (it lives on the partition that would be exported), so copying books means leaving KOReader and going through the Amazon UI.
 
-<p align="center">
-  <img src="screens/usbms-demo.gif" width="280" alt="Demo on a Kindle Paperwhite 2: Start USB storage from the menu, confirm, plug in the cable, and KOReader comes back after the session">
-</p>
-<p align="center"><sub>Direct method on a Paperwhite 2, at 2x speed.</sub></p>
-
-| Waiting for a computer | Drive exported | Returning |
-| :-: | :-: | :-: |
-| ![Waiting screen with an unplugged cable](screens/usb-waiting.jpg) | ![Active USB storage screen](screens/usb-active.jpg) | ![Storage recovery and return screen](screens/usb-returning.jpg) |
-
 ## Compatibility
 
 | | |
 | :-- | :-- |
 | Tested on | Kindle Paperwhite 2 (6th gen, 2013), firmware 5.12.2.2, KOReader 2026.07.2 started with `koreader.sh --framework_stop` |
 | Other Kindles | Untested. The direct method checks the expected storage layout and services before export (see [Safety](#safety)) and refuses if a check fails. Passing those checks does not establish compatibility with an untested device. The Amazon UI method uses Amazon's USB handling, but is also untested elsewhere. Kindles without the `fsl-usb2-udc` USB controller cannot tell a computer from a charger: the plugin asks on any cable, and the Amazon UI method stays in the Amazon UI after a USB session instead of guessing when the cable is out |
-| Status screens | Illustrations tested on Paperwhite 2: 758x1024 visible pixels, 8-bit framebuffer with 768-byte rows. Other framebuffer formats use a text fallback |
+| Status screens | Text only, placed and sized from the screen height reported by KOReader's `fbink` |
 | Other platforms | Unsupported. The plugin disables itself on anything but a Kindle |
 
 ## Install
@@ -44,7 +35,7 @@ You can also [build the package from source](#build-a-release). The development 
 
 **Direct method** (default when KOReader runs without the Amazon framework). It does what Amazon's `volumd` does, without the framework:
 
-1. The plugin copies a shell helper, KOReader's `fbink`, a font and the status screens to `/var/tmp` (RAM), starts the helper, and waits until the helper confirms it has paused `koreader.sh`. Only then does KOReader quit.
+1. The plugin copies a shell helper, KOReader's `fbink` and a font to `/var/tmp` (RAM), starts the helper, and waits until the helper confirms it has paused `koreader.sh`. Only then does KOReader quit.
 2. The helper waits for KOReader to exit, stops what KOReader left running, and waits for both `gadget/connected` and `powerd isCharging` to report `1`. It then unmounts `/mnt/base-us` and writes `/dev/mmcblk0p4` to the USB gadget's LUN. `g_file_storage` is already loaded by the firmware; no module is loaded or unloaded.
 3. When the computer ejects the drive (the gadget empties the LUN) or the cable goes away, the helper confirms the LUN is released, checks unclean sessions through Amazon's `mntus --fsck mount`, and remounts the storage. It resumes `koreader.sh` only after the base mount and access to KOReader are confirmed; the launcher's loop then restarts KOReader.
 
@@ -71,7 +62,7 @@ If recovery cannot be confirmed, the helper leaves the launcher paused and displ
 Run `node --test tests/usbms.test.cjs` with Node.js 18 or later and Bash (WSL on Windows). The tests check shell syntax and exercise recovery, startup cancellation, mount detection and Amazon UI return with simulated device operations. They do not export storage or mount a real filesystem. On-device validation is still required for the Kindle kernel, BusyBox, `mntus` and USB host behavior.
 
 Lua data and file-error checks: `node tests/lua-data.cjs | npx --yes --package=fengari-node-cli@0.1.0 fengari -`.
-On Windows, run `pwsh -File tests/Test-Release.ps1` to check image conversion and packaging, including invalid image input. These developer tools require Node.js/npm, PowerShell 7, and Windows System.Drawing; npm downloads the pinned Lua tooling on first use. They are not needed on the Kindle.
+Run `pwsh -File tests/Test-Release.ps1` to check release packaging. These developer tools require Node.js/npm and PowerShell 7; npm downloads the pinned Lua tooling on first use. They are not needed on the Kindle.
 
 ## Languages
 
@@ -79,23 +70,11 @@ English plus the 41 other languages KOReader offers (Romanian (Moldova) and Engl
 
 All translations other than English and Spanish are machine translations: corrections from native speakers are very welcome. Each language is one file in `usbms.koplugin/l10n/`; copy `es.lua` to add one.
 
-Status illustrations are written directly to the framebuffer. Their text is drawn by KOReader's `fbink` with Noto Sans, which covers Latin, Greek and Cyrillic scripts but does no right-to-left or complex shaping. In Arabic, Persian, Hebrew, Hindi, Georgian, Japanese, Korean and Chinese, the status screens show English text; the rest of the plugin is in your language.
-
-## Customize the screens
-
-The screens are raw 8-bit framebuffer dumps (758 px per 768-byte row, 1024 rows) in `usbms.koplugin/screens/`. To use your own pictures, put three portrait images named `usb-waiting`, `usb-active` and `usb-returning` (JPG or PNG, bottom quarter left empty for the text) in `screens/` and run on Windows:
-
-```powershell
-pwsh -File tools/Convert-UsbScreens.ps1 -InputDir screens -OutputDir usbms.koplugin/screens
-```
-
-Those paths are also the defaults, so `pwsh -File tools/Convert-UsbScreens.ps1` works from any working directory. Exactly one JPG/JPEG/PNG per screen is required. Missing, duplicate or unreadable input fails the conversion before any output RAW is updated. All three images are rendered in a temporary directory first; publishing the files is not a transactional filesystem operation, so an output disk error can still interrupt that final copy.
-
-The helper uses RAW images only when the reported virtual framebuffer width is 768 pixels, its height is at least 1024 pixels, and the pixel depth is 8 bits. If the kernel exposes the stride, it must be 768 bytes; kernels without that optional attribute can still display the images. The tested Paperwhite 2 reports a virtual size of `768,4096`, larger than its visible screen. Each RAW must contain exactly 786432 bytes; only the 758x1024 visible region is refreshed.
+The status screen text is drawn by KOReader's `fbink` with Noto Sans, which covers Latin, Greek and Cyrillic scripts but does no right-to-left or complex shaping. In Arabic, Persian, Hebrew, Hindi, Georgian, Japanese, Korean and Chinese, the status screens show English text; the rest of the plugin is in your language.
 
 ## Build A Release
 
-Run `pwsh -File tools/Build-Release.ps1`. The version comes from the plugin metadata. The script stages the plugin and license, checks all Lua syntax, every translation table in `l10n/` and its placeholders, text encoding and line endings, and RAW sizes and padding. It rejects unexpected files.
+Run `pwsh -File tools/Build-Release.ps1`. The version comes from the plugin metadata. The script stages the plugin and license, checks all Lua syntax, every translation table in `l10n/` and its placeholders, and text encoding and line endings. It rejects unexpected files.
 
 The ZIP contains one `usbms.koplugin/` root and is checked entry by entry against the staged SHA-256 hashes. The ZIP, a `.sha256` checksum and a `.manifest.json` file are written under `dist/`; an existing ZIP is never overwritten. Use `-OutputDir` for another destination. These checks do not replace the on-device tests described above. A SHA-256 checksum detects accidental changes but is not a signature or proof of publisher identity.
 
@@ -116,7 +95,6 @@ The log of the last session: *Settings → Device → USB mass storage → Show 
 
 - [KOReader](https://github.com/koreader/koreader) and its developers. The design follows NiLuJe's [KoboUSBMS](https://github.com/koreader/KoboUSBMS) (helper on tmpfs, busy check before export, `dosfsck` on the way back) and the analysis in koreader issues [#3220](https://github.com/koreader/koreader/issues/3220) and [#2597](https://github.com/koreader/koreader/issues/2597).
 - [zen-mtp](https://github.com/xZenLabs/zen-mtp), for the hand-off from KOReader to a helper on Kindle.
-- Status screen illustrations generated with Google Gemini, in the style of 19th-century engravings.
 
 ## License
 

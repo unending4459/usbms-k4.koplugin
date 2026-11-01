@@ -60,51 +60,24 @@ host_connected() {
         [ "$(lipc-get-prop com.lab126.powerd isCharging 2>/dev/null)" = "1" ]
 }
 
-# Full-screen status. The image is a raw 8-bit framebuffer dump (758 px per 768-byte row, 1024
-# rows) written straight to /dev/fb0, like koreader.sh restores the screen; eips -g misplaces PNGs
-# on this device and KOReader's fbink has no image support. The text goes through that fbink with
-# KOReader's Noto Sans (OpenType is in its build). Each piece falls back to something plainer when
-# its file is missing or the framebuffer is not the expected one. The images keep their bottom
-# quarter empty for the text.
-FB_DEV=/dev/fb0
-FB_STRIDE=768
-FB_WIDTH=758
-FB_HEIGHT=1024
-
-framebuffer_matches() {
-    [ "${1%%,*}" = "$FB_STRIDE" ] || return 1
-    virtual_height=${1#*,}
-    case "$1" in *,*) ;; *) return 1 ;; esac
-    case "$virtual_height" in ''|*[!0-9]*) return 1 ;; esac
-    [ "$virtual_height" -ge "$FB_HEIGHT" ] 2>/dev/null && [ "$2" = "8" ] && \
-        { [ -z "$3" ] || [ "$3" = "$FB_STRIDE" ]; }
-}
-
-draw_image() {
-    raw="$WORK/$1.raw"
-    [ -f "$raw" ] && [ -w "$FB_DEV" ] || { log "Image $1 skipped: RAW missing or framebuffer not writable"; return 1; }
-    read -r vsize < /sys/class/graphics/fb0/virtual_size 2>/dev/null || { log "Image $1 skipped: virtual_size unreadable"; return 1; }
-    fb_bits=$(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)
-    fb_stride=$(cat /sys/class/graphics/fb0/stride 2>/dev/null)
-    raw_size=$(stat -c %s "$raw" 2>/dev/null)
-    log "Image $1: virtual_size=$vsize bits=$fb_bits stride=${fb_stride:-unavailable} raw_bytes=$raw_size"
-    framebuffer_matches "$vsize" "$fb_bits" "$fb_stride" || { log "Image $1 skipped: framebuffer mismatch"; return 1; }
-    [ "$raw_size" = "$((FB_STRIDE * FB_HEIGHT))" ] || { log "Image $1 skipped: RAW size mismatch"; return 1; }
-    cat "$raw" > "$FB_DEV" 2>/dev/null || { log "Image $1 failed: framebuffer write"; return 1; }
-    if [ -x "$FBINK" ]; then
-        "$FBINK" -q -f -s "top=0,left=0,width=$FB_WIDTH,height=$FB_HEIGHT" > /dev/null 2>&1
-    fi
-    return 0
-}
-
+# Full-screen status, text only. The text goes through KOReader's fbink with KOReader's Noto Sans
+# (OpenType is in its build), placed and sized from the real screen height so it fits the K4's
+# 600x800 as well as the Paperwhite's 758x1024. Each piece falls back to something plainer when its
+# file is missing. The first argument names the screen (it used to pick an image) and is unused.
 screen() {
-    name=$1; shift
-    if ! draw_image "$name"; then
-        if [ -x "$FBINK" ]; then "$FBINK" -q -c -f; else eips -c; fi
+    shift
+    view_height=
+    if [ -x "$FBINK" ]; then
+        view_height=$("$FBINK" -e 2>/dev/null | sed -n 's/.*viewHeight=\([0-9]*\);.*/\1/p')
+        "$FBINK" -q -c -f
+    else
+        eips -c
     fi
-    top=790
-    row=38
-    px=44
+    case "$view_height" in ''|*[!0-9]*|0) view_height=800 ;; esac
+    # Upper middle of the screen; the fallbacks count rows of 16 px (fbink -S 2) instead of pixels.
+    top=$((view_height * 2 / 5))
+    row=$((top / 16))
+    px=$((view_height * 44 / 1024))
     for line in "$@"; do
         if [ -x "$FBINK" ] && [ -f "$FONT" ] && "$FBINK" -q -O -m -t "regular=$FONT,px=$px,top=$top,left=30,right=30" -- "$line" > /dev/null 2>&1; then
             top=$((top + px + 12))
@@ -115,7 +88,7 @@ screen() {
             eips 2 "$row" "$line" > /dev/null 2>&1
             row=$((row + 2))
         fi
-        px=32
+        px=$((view_height * 32 / 1024))
     done
 }
 

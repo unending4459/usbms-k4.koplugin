@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { test } = require("node:test");
 
@@ -88,31 +89,35 @@ echo HOST_READY
     assert.equal(result.stdout.trim(), "usb-waiting\nCABLE_INSERTED\nHOST_READY");
 });
 
-for (const [size, bits, stride, expected] of [
-    ["768,1024", "8", "768", 0],
-    ["768,4096", "8", "768", 0],
-    ["768,2048", "8", "", 0],
-    ["768,1023", "8", "768", 1],
-    ["768", "8", "768", 1],
-    ["768,", "8", "768", 1],
-    ["768,invalid", "8", "768", 1],
-    ["768,1024,4096", "8", "768", 1],
-    ["800,4096", "8", "768", 1],
-    ["768,800", "8", "768", 1],
-    ["768,1024", "16", "768", 1],
-    ["768,1024", "8", "800", 1],
-    ["768,1024", "8", "", 0],
-    ["768,1024", "8", "invalid", 1],
-    ["768,800", "8", "", 1],
-    ["768,1024", "16", "", 1],
+// Kindle 4 (600x800), Paperwhite 2 (758x1024), and an fbink that reports no height.
+for (const [height, title, text] of [
+    ["800", "px=34,top=320", "px=25,top=366"],
+    ["1024", "px=44,top=409", "px=32,top=465"],
+    ["", "px=34,top=320", "px=25,top=366"],
 ]) {
-    test(`framebuffer validates ${size} bpp=${bits} stride=${stride}`, () => {
-        const result = runShell(`
-FB_STRIDE=768; FB_HEIGHT=1024
-${shellFunction(direct, "framebuffer_matches")}
-framebuffer_matches '${size}' '${bits}' '${stride}'
+    test(`status text fits a screen of height ${height || "unknown"}`, () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "usbms-fbink-"));
+        try {
+            const fbink = path.join(dir, "fbink");
+            const state = height ? `viewWidth=600;viewHeight=${height};screenWidth=600;` : "";
+            // screen() silences the text calls, so the mock reports on fd 3.
+            fs.writeFileSync(fbink, `#!/bin/sh\n[ "$1" = -e ] && { printf '%s' '${state}'; exit 0; }\necho "$*" >&3\n`,
+                { mode: 0o755 });
+            const result = runShell(`
+exec 3>&1
+FBINK='${fbink}'; FONT='${fbink}'
+${shellFunction(direct, "screen")}
+screen usb-waiting Title Text
 `);
-        assert.equal(result.status, expected);
+            assert.equal(result.status, 0, result.stderr);
+            const lines = result.stdout.trim().split("\n");
+            assert.equal(lines.length, 3, result.stdout);
+            assert.equal(lines[0], "-q -c -f");
+            assert.ok(lines[1].includes(`,${title},`) && lines[1].endsWith("-- Title"), lines[1]);
+            assert.ok(lines[2].includes(`,${text},`) && lines[2].endsWith("-- Text"), lines[2]);
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
     });
 }
 

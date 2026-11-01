@@ -9,8 +9,7 @@ const locales = process.argv.slice(3);
 assert.ok(locales.length > 0, "No locales given");
 for (const name of locales) assert.match(name, /^[a-z]{2,3}(?:_[A-Z]{2})?$/, `Locale name: ${name}`);
 const luaFiles = ["main.lua", "_meta.lua", "usbms_l10n.lua", ...locales.map(name => `l10n/${name}.lua`)];
-const screens = ["usb-waiting", "usb-active", "usb-returning"].map(name => `screens/${name}.raw`);
-const expected = [...luaFiles, "usbms_direct.sh", "usbms_framework.sh", "LICENSE", ...screens].sort();
+const expected = [...luaFiles, "usbms_direct.sh", "usbms_framework.sh", "LICENSE"].sort();
 const asts = fs.readFileSync(0, "utf8").trim().split(/\r?\n/).map(JSON.parse);
 assert.equal(asts.length, luaFiles.length, "Unexpected Lua AST count");
 
@@ -71,19 +70,6 @@ const files = expected.map(name => {
         const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
         assert.doesNotMatch(text, /\r/, `CR line endings: ${name}`);
         assert.ok(!(bytes[0] === 239 && bytes[1] === 187 && bytes[2] === 191), `BOM: ${name}`);
-    }
-    if (screens.includes(name)) {
-        assert.equal(bytes.length, 768 * 1024, `RAW size: ${name}`);
-        let minimum = 255;
-        let maximum = 0;
-        for (let row = 0; row < 1024; row++) {
-            for (let column = 0; column < 768; column++) {
-                const value = bytes[row * 768 + column];
-                if (column >= 758) assert.equal(value, 255, `RAW padding: ${name}`);
-                else { minimum = Math.min(minimum, value); maximum = Math.max(maximum, value); }
-            }
-        }
-        assert.ok(maximum > minimum, `Blank RAW: ${name}`);
     }
     return { path: name, sha256: crypto.createHash("sha256").update(bytes).digest("hex") };
 });

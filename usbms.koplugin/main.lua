@@ -53,13 +53,11 @@ local SSH_PIDFILE = "/tmp/dropbear_koreader.pid"
 -- with the fsl UDC (the tested Paperwhite 2 among them) have it.
 local USB_CONNECTED = "/sys/devices/platform/fsl-usb2-udc/gadget/connected"
 -- What the direct helper needs off the userstore besides itself: KOReader's fbink (OpenType text,
--- no image support), a font for it, and the three screens as raw framebuffer dumps.
+-- no image support) and a font for it. The status screens are text only: the original raw images
+-- only fit the Paperwhite 2's 758x1024 framebuffer.
 local DIRECT_PAYLOAD = {
     { src = "./fbink", dst = "fbink", mode = "755" },
     { src = "./fonts/noto/NotoSans-Regular.ttf", dst = "NotoSans-Regular.ttf", mode = "644" },
-    { plugin = "screens/usb-waiting.raw", dst = "usb-waiting.raw", mode = "644", optional = true },
-    { plugin = "screens/usb-active.raw", dst = "usb-active.raw", mode = "644", optional = true },
-    { plugin = "screens/usb-returning.raw", dst = "usb-returning.raw", mode = "644", optional = true },
 }
 -- koreader.sh loops on 85, which the direct helper relies on to bring KOReader back.
 local EXIT_CODE_RESTART = 85
