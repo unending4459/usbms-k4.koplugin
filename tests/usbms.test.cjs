@@ -121,6 +121,23 @@ screen usb-waiting Title Text
     });
 }
 
+// FW 5 asks upstart; FW 4 has no status command and only a cvm that is gone counts as stopped.
+for (const [label, mocks, expected] of [
+    ["upstart job stopped", "status() { echo 'lab126_gui stop/waiting'; }", 0],
+    ["upstart job running", "status() { echo 'lab126_gui start/running'; }", 1],
+    ["sysv without cvm", "pidof() { return 1; }", 0],
+    ["sysv with cvm", "pidof() { echo 1234; }", 1],
+]) {
+    test(`framework check: ${label}`, () => {
+        const result = runShell(`
+${mocks}
+${shellFunction(direct, "framework_stopped")}
+framework_stopped
+`);
+        assert.equal(result.status, expected, result.stderr);
+    });
+}
+
 for (const [name, source] of [["direct", direct], ["framework", framework]]) {
     test(`${name} helper has valid POSIX shell syntax`, () => {
         const result = runShell(source, "sh", ["-n"]);

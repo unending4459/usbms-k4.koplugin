@@ -235,7 +235,17 @@ kdb_is() { [ "$(kdb get "$1" 2>/dev/null)" = "$2" ]; }
 
 check "parent $KOSH_PID is not koreader.sh" sh -c "tr '\0' ' ' < /proc/$KOSH_PID/cmdline | grep -q koreader.sh"
 check "reader $READER_PID is not a child of $KOSH_PID" sh -c "[ \"\$(awk '/^PPid/{print \$2}' /proc/$READER_PID/status)\" = $KOSH_PID ]"
-check "the Amazon framework is running" sh -c "status lab126_gui | grep -q 'stop/waiting'"
+framework_stopped() {
+    # FW 5 (upstart) has a job for it. FW 4 (sysvinit, K4) has none: koreader.sh --framework_stop
+    # stops the framework through /etc/init.d/framework, which ends cvm; with the framework up,
+    # koreader.sh only SIGSTOPs cvm, so a paused cvm still counts as running.
+    if command -v status > /dev/null 2>&1; then
+        status lab126_gui | grep -q 'stop/waiting'
+    else
+        ! pidof cvm > /dev/null
+    fi
+}
+check "the Amazon framework is running" framework_stopped
 # koreader.sh SIGSTOPs volumd; a running volumd would react to the same USB events we do.
 VOLUMD_PID=$(pidof volumd)
 check "volumd is not stopped (state $(grep '^State' "/proc/$VOLUMD_PID/status" 2>/dev/null))" \
